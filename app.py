@@ -2,24 +2,85 @@ import streamlit as st
 import pandas as pd
 import base64
 
-# --- Background Setup ---
-def set_background(image_file):
+# --- Background & Styling Setup ---
+def set_styling(image_file):
     try:
-        with open(image_file, 'rb') as f: data = f.read()
+        with open(image_file, 'rb') as f: 
+            data = f.read()
         bin_str = base64.b64encode(data).decode()
-        st.markdown(f'''<style>.stApp {{ background-image: url("data:image/jpg;base64,{bin_str}"); background-size: cover; background-attachment: fixed; }} .block-container {{ background-color: rgba(255, 255, 255, 0.96); padding: 2rem 3rem; border-radius: 15px; margin-top: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }} h1 {{ text-align: center; color: #1a1a1a; font-family: 'Serif'; font-weight: bold; }}</style>''', unsafe_allow_html=True)
-    except: pass
+        
+        # Injecting Google Fonts (Playfair Display as a substitute for Branch) and Centering CSS
+        st.markdown(f'''
+            <style>
+            @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap');
 
-set_background('Front.jpg')
+            .stApp {{
+                background-image: url("data:image/jpg;base64,{bin_str}");
+                background-size: cover;
+                background-attachment: fixed;
+            }}
+            
+            /* Center and Style the Main Container */
+            .block-container {{
+                background-color: rgba(255, 255, 255, 0.96);
+                padding: 3rem;
+                border-radius: 15px;
+                margin-top: 2rem;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+                text-align: center; /* Centers text in the container */
+            }}
+            
+            /* Center All Elements */
+            .stRadio > div {{
+                display: flex;
+                justify-content: center;
+            }}
+            
+            .stFileUploader section {{
+                display: flex;
+                justify-content: center;
+                width: 100%;
+            }}
+
+            h1 {{
+                font-family: 'Playfair Display', serif;
+                font-size: 3rem !important;
+                color: #1a1a1a;
+                text-align: center;
+                margin-bottom: 2rem;
+            }}
+
+            h3 {{
+                text-align: center;
+            }}
+
+            p {{
+                text-align: center;
+            }}
+            </style>
+        ''', unsafe_allow_html=True)
+    except:
+        pass
+
+set_styling('Front.jpg')
 
 # --- Header ---
 st.title("Brettargh Holt Mansion Guest Allocation")
-st.write("") # This keeps the area blank as requested
+st.write("") 
 
 # --- Configuration ---
-mode = st.radio("Hotel Capacity:", options=[(32, "Max 32 (2 Floors)"), (48, "Max 48 (3 Floors)")], format_func=lambda x: x[1], index=1)
+st.markdown("### Select Configuration")
+mode = st.radio(
+    label="Hotel Capacity", # Label is hidden visually by centering, but necessary for the UI
+    options=[(32, "Max 32 (2 Floors)"), (48, "Max 48 (3 Floors)")], 
+    format_func=lambda x: x[1], 
+    index=1,
+    label_visibility="collapsed"
+)
 guest_limit = mode[0]
+
 uploaded_file = st.file_uploader("Upload Guest CSV", type="csv")
+st.markdown("---")
 
 if uploaded_file is not None:
     try:
@@ -79,7 +140,7 @@ if uploaded_file is not None:
                 rooms_df.at[idx, 'Occupied'] = True
                 rooms_df.at[idx, 'Guest_Surname'] = guest['Surname']
 
-        st.write(f"### Results for {mode[1]}")
+        st.markdown(f"### Results for {mode[1]}")
         st.dataframe(rooms_df[['Room #', 'Room Name', 'Type', 'Floor', 'Guest_Surname']].sort_values(by='Room #'), use_container_width=True)
         st.download_button("Download Allocation", rooms_df.to_csv(index=False).encode('utf-8'), "Allocation.csv", "text/csv", use_container_width=True)
             
