@@ -32,23 +32,35 @@ def set_background(image_file):
         color: #1a1a1a;
         font-family: 'Serif';
     }}
+
+    /* High-visibility Warning Style */
+    .capacity-warning {{
+        background-color: #ff4b4b;
+        color: white;
+        padding: 1rem;
+        border-radius: 10px;
+        text-align: center;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        border: 2px solid white;
+    }}
     </style>
     '''
     st.markdown(page_bg_img, unsafe_allow_html=True)
 
-# Attempt to set the background using Front.jpg
+# Attempt to set the background
 try:
     set_background('Front.jpg')
 except FileNotFoundError:
-    st.warning("Background image 'Front.jpg' not found. Please ensure it is in the same directory.")
+    st.warning("Background image 'Front.jpg' not found.")
 
-# --- Updated Title ---
+# --- Title ---
 st.title("Brettargh Holt Mansion Guest Allocation")
 st.markdown("Upload your guest list to automatically assign rooms based on priority.")
 
 st.markdown("---")
 
-# --- Simplified Configuration Selection ---
+# --- Configuration Selection ---
 st.write("### Select Configuration")
 mode = st.radio(
     "Choose the hotel capacity for this booking:",
@@ -66,15 +78,29 @@ st.markdown("---")
 
 if uploaded_file is not None:
     try:
-        # Load internal room inventory
+        # Load internal room inventory 
         rooms_df = pd.read_csv('Untitled spreadsheet - Sheet1 (1).csv')
         guests_df = pd.read_csv(uploaded_file)
         
-        # Floor logic
+        # Floor logic based on room numbering 
         def get_floor(n): return 0 if n <= 8 else (1 if n <= 16 else 2)
         rooms_df['Floor'] = rooms_df['Room #'].apply(get_floor)
         
-        # Apply capacity filter
+        # Room Counts
+        available_rooms_2_floors = rooms_df[rooms_df['Floor'] < 2].shape[0] # Usually 16 rooms
+        total_guest_groups = guests_df.shape[0]
+
+        # CAPACITY CHECK: If 32 selected but guests > 16 rooms 
+        if guest_limit == 32 and total_guest_groups > available_rooms_2_floors:
+            st.markdown(
+                f'<div class="capacity-warning">'
+                f'⚠️ ALERT: You have {total_guest_groups} guest groups but only {available_rooms_2_floors} rooms available on 2 floors.<br>'
+                f'Please select the "Max 48 (3 Floors)" option to accommodate everyone.'
+                f'</div>', 
+                unsafe_allow_html=True
+            )
+
+        # Apply capacity filter 
         if guest_limit == 32:
             rooms_df = rooms_df[rooms_df['Floor'] < 2].copy()
         else:
@@ -83,7 +109,7 @@ if uploaded_file is not None:
         rooms_df['Occupied'] = False
         rooms_df['Guest_Surname'] = "Empty"
         
-        # Priority logic
+        # Priority logic 
         priority_map = {'Family': 1, 'Couple': 2, 'Single': 3}
         guests_df['Priority'] = guests_df['Guest Type'].map(priority_map)
         guests_sorted = guests_df.sort_values(
@@ -91,6 +117,7 @@ if uploaded_file is not None:
             ascending=[False, True]
         )
 
+        # Allocation Loop 
         for _, guest in guests_sorted.iterrows():
             if guest['Disabled Access Needed?'] == 'Yes':
                 mask = (rooms_df['Type'].str.contains('Disabled'))
@@ -109,6 +136,9 @@ if uploaded_file is not None:
                 idx = potential.index[0]
                 rooms_df.at[idx, 'Occupied'] = True
                 rooms_df.at[idx, 'Guest_Surname'] = guest['Surname']
+            else:
+                # If no rooms left, this guest gets "Overflow" 
+                pass 
 
         # --- Results Display ---
         st.write(f"### {mode[1]} Results")
