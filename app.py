@@ -146,3 +146,18 @@ if uploaded_file is not None:
             
     except Exception as e:
         st.error(f"Error: {e}")
+        # --- Results Display ---
+        st.markdown(f"### Results for {mode[1]}")
+        
+        # Add a quick summary stats bar
+        used_rooms = rooms_df[rooms_df['Guest_Surname'] != "Empty"].shape[0]
+        total_available = rooms_df.shape[0]
+        
+        col1, col2 = st.columns(2)
+        col1.metric("Rooms Occupied", f"{used_rooms}")
+        col2.metric("Rooms Remaining", f"{total_available - used_rooms}")
+
+        st.dataframe(
+            rooms_df[['Room #', 'Room Name', 'Type', 'Floor', 'Guest_Surname']].sort_values(by='Room #'), 
+            use_container_width=True
+        )
