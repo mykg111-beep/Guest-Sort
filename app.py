@@ -7,13 +7,13 @@ def set_background(image_file):
     try:
         with open(image_file, 'rb') as f: data = f.read()
         bin_str = base64.b64encode(data).decode()
-        st.markdown(f'''<style>.stApp {{ background-image: url("data:image/jpg;base64,{bin_str}"); background-size: cover; background-attachment: fixed; }} .block-container {{ background-color: rgba(255, 255, 255, 0.94); padding: 2rem 3rem; border-radius: 15px; margin-top: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }} h1 {{ text-align: center; color: #1a1a1a; font-family: 'Serif'; }}</style>''', unsafe_allow_html=True)
+        st.markdown(f'''<style>.stApp {{ background-image: url("data:image/jpg;base64,{bin_str}"); background-size: cover; background-attachment: fixed; }} .block-container {{ background-color: rgba(255, 255, 255, 0.96); padding: 2rem 3rem; border-radius: 15px; margin-top: 2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }} h1 {{ text-align: center; color: #1a1a1a; font-family: 'Serif'; font-weight: bold; }}</style>''', unsafe_allow_html=True)
     except: pass
 
 set_background('Front.jpg')
 
 st.title("Brettargh Holt Mansion Guest Allocation")
-st.markdown("Precision assignment: Prioritizing Superior and Family rooms correctly.")
+st.markdown("Precision sorting enabled: Superior Room requests are now processed first.")
 
 # --- Configuration ---
 mode = st.radio("Hotel Capacity:", options=[(32, "Max 32 (2 Floors)"), (48, "Max 48 (3 Floors)")], format_func=lambda x: x[1], index=1)
@@ -22,9 +22,10 @@ uploaded_file = st.file_uploader("Upload Guest CSV", type="csv")
 
 if uploaded_file is not None:
     try:
-        # Load Inventory
+        # Load Inventory and apply labels
         rooms_df = pd.read_csv('Untitled spreadsheet - Sheet1 (1).csv')
-        guests_df = pd.read_csv(uploaded_file)
+        superior_rooms = [2, 7, 8, 10, 11]
+        rooms_df.loc[rooms_df['Room #'].isin(superior_rooms), 'Type'] = 'Superior Double'
         
         def get_floor(n): return 0 if n <= 8 else (1 if n <= 16 else 2)
         rooms_df['Floor'] = rooms_df['Room #'].apply(get_floor)
@@ -36,15 +37,23 @@ if uploaded_file is not None:
         rooms_df['Occupied'] = False
         rooms_df['Guest_Surname'] = "Empty"
         
-        # Priority sort: Disabled > Superior > Family > Couples > Singles
-        priority_map = {'Family': 2, 'Couple': 3, 'Single': 4}
-        guests_df['Priority'] = guests_df['Guest Type'].map(priority_map)
-        guests_sorted = guests_df.sort_values(by=['Disabled Access Needed?', 'Superior Room?', 'Priority'], ascending=[False, False, True])
+        guests_df = pd.read_csv(uploaded_file)
+        
+        # --- NEW STRICTOR SORTING ---
+        # Assign numeric priority: Superior/Disabled get highest priority
+        priority_map = {'Family': 3, 'Couple': 4, 'Single': 5}
+        guests_df['Base_Priority'] = guests_df['Guest Type'].map(priority_map)
+        
+        # Sort so that Disabled=Yes and Superior=Yes are at the VERY top
+        guests_sorted = guests_df.sort_values(
+            by=['Disabled Access Needed?', 'Superior Room?', 'Base_Priority'], 
+            ascending=[False, False, True]
+        )
 
         for _, guest in guests_sorted.iterrows():
             potential = pd.DataFrame()
             
-            # STEP 1: Try for the Ideal Match
+            # STEP 1: Ideal Match
             if guest['Disabled Access Needed?'] == 'Yes':
                 potential = rooms_df[(rooms_df['Type'].str.contains('Disabled')) & (~rooms_df['Occupied'])]
             elif guest['Superior Room?'] == 'Yes':
@@ -53,14 +62,15 @@ if uploaded_file is not None:
                 potential = rooms_df[(rooms_df['Type'] == 'Family') & (~rooms_df['Occupied'])]
             elif guest.get('Willing to Share?') == 'Yes':
                 potential = rooms_df[(rooms_df['Type'].str.contains('Twin')) & (~rooms_df['Occupied'])]
+            else:
+                potential = rooms_df[(rooms_df['Type'] == 'Standard Double') & (~rooms_df['Occupied'])]
 
-            # STEP 2: Smart Fallbacks (If ideal is full)
+            # STEP 2: Smart Fallback (Couples/Superior get any Double)
             if potential.empty:
                 if guest['Guest Type'] in ['Couple', 'Single'] or guest['Superior Room?'] == 'Yes':
-                    # Couples, Singles, or Superior-seekers who couldn't get a Superior room should try Standard Doubles next
                     potential = rooms_df[(rooms_df['Type'].str.contains('Double')) & (~rooms_df['Occupied'])]
                 
-            # STEP 3: Last Resort (Any room left)
+            # STEP 3: Absolute Last Resort
             if potential.empty:
                 potential = rooms_df[~rooms_df['Occupied']]
             
