@@ -12,8 +12,9 @@ def set_background(image_file):
 
 set_background('Front.jpg')
 
+# --- Header ---
 st.title("Brettargh Holt Mansion Guest Allocation")
-st.markdown("Precision sorting enabled: Superior Room requests are now processed first.")
+st.write("") # This keeps the area blank as requested
 
 # --- Configuration ---
 mode = st.radio("Hotel Capacity:", options=[(32, "Max 32 (2 Floors)"), (48, "Max 48 (3 Floors)")], format_func=lambda x: x[1], index=1)
@@ -39,12 +40,11 @@ if uploaded_file is not None:
         
         guests_df = pd.read_csv(uploaded_file)
         
-        # --- NEW STRICTOR SORTING ---
-        # Assign numeric priority: Superior/Disabled get highest priority
+        # Priority mapping
         priority_map = {'Family': 3, 'Couple': 4, 'Single': 5}
         guests_df['Base_Priority'] = guests_df['Guest Type'].map(priority_map)
         
-        # Sort so that Disabled=Yes and Superior=Yes are at the VERY top
+        # Sort for precision allocation
         guests_sorted = guests_df.sort_values(
             by=['Disabled Access Needed?', 'Superior Room?', 'Base_Priority'], 
             ascending=[False, False, True]
@@ -53,7 +53,7 @@ if uploaded_file is not None:
         for _, guest in guests_sorted.iterrows():
             potential = pd.DataFrame()
             
-            # STEP 1: Ideal Match
+            # Step 1: Ideal Match
             if guest['Disabled Access Needed?'] == 'Yes':
                 potential = rooms_df[(rooms_df['Type'].str.contains('Disabled')) & (~rooms_df['Occupied'])]
             elif guest['Superior Room?'] == 'Yes':
@@ -65,12 +65,12 @@ if uploaded_file is not None:
             else:
                 potential = rooms_df[(rooms_df['Type'] == 'Standard Double') & (~rooms_df['Occupied'])]
 
-            # STEP 2: Smart Fallback (Couples/Superior get any Double)
+            # Step 2: Fallback
             if potential.empty:
                 if guest['Guest Type'] in ['Couple', 'Single'] or guest['Superior Room?'] == 'Yes':
                     potential = rooms_df[(rooms_df['Type'].str.contains('Double')) & (~rooms_df['Occupied'])]
                 
-            # STEP 3: Absolute Last Resort
+            # Step 3: Last Resort
             if potential.empty:
                 potential = rooms_df[~rooms_df['Occupied']]
             
